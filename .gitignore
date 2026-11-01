@@ -1,0 +1,11 @@
+# Local environment files can contain API keys and other secrets.
+.env
+.env.*
+!.env.example
+**/.env
+**/.env.*
+!**/.env.example
+
+# Local Python environment and bytecode.
+backend/.venv/
+backend/__pycache__/
