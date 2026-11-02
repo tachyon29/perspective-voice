@@ -39,6 +39,10 @@ export type SavedDirectMessages = Record<TeamMemberName, SavedDirectMessage[]>;
 
 export interface WorkplaceProgress {
   view: SavedWorkplaceView;
+  activeTicketId?: string;
+  ticketDrafts?: Record<string, string>;
+  ticketOutputs?: Record<string, string>;
+  completedTickets?: string[];
   selectedFileName: string;
   paymentCode: string;
   checkOutput: string;

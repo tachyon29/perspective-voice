@@ -22,6 +22,75 @@ import {
 
 type WorkspaceView = SavedWorkplaceView;
 type PullRequestStatus = "not-created" | "in-review" | "merged";
+type TicketId = "PAY-142" | "DATA-208" | "API-317" | "PLAT-214";
+
+interface EngineeringTicket {
+  id: Exclude<TicketId, "PAY-142">;
+  title: string;
+  summary: string;
+  context: string;
+  priority: string;
+  category: string;
+  fileName: string;
+  language: string;
+  starterCode: string;
+  instruction: string;
+  acceptance: string[];
+}
+
+const engineeringTickets: EngineeringTicket[] = [
+  {
+    id: "DATA-208",
+    title: "Speed up payment history queries",
+    summary: "The payment history page has become slow as the payments table has grown.",
+    context: "The current query scans the table to build a recent customer summary. Fix the status filter, return the top two customers by successful payment volume since October 1, and add a composite index so the database can find matching rows without a full scan.",
+    priority: "High",
+    category: "Database performance",
+    fileName: "payment_history.sql",
+    language: "sql",
+    starterCode: `-- Table: payments(id, customer_id, amount_cents, status, created_at)\n-- Add an index for the filters, then return the top two customer totals.\n\nSELECT customer_id, SUM(amount_cents) AS total_cents\nFROM payments\nWHERE status = 'complete'\n  AND created_at >= '2026-10-01'\nGROUP BY customer_id\nORDER BY total_cents DESC\nLIMIT 2;`,
+    instruction: "Write MySQL-compatible SQL to correct the history query and improve its lookup path. The editor runs it against an isolated sample dataset and checks the query plan.",
+    acceptance: [
+      "Only successful payments from October 1 onward are included.",
+      "The two largest customer totals are returned in descending order.",
+      "A composite (status, created_at) index is used instead of a table scan.",
+    ],
+  },
+  {
+    id: "API-317",
+    title: "Fix transaction pagination boundaries",
+    summary: "Customers see a missing transaction at the end of every page.",
+    context: "The endpoint uses one-based page numbers, but its slice end is off by one. Correct the helper so full pages, the final partial page, and a page beyond the end all behave consistently.",
+    priority: "Normal",
+    category: "API bug",
+    fileName: "pagination.py",
+    language: "python",
+    starterCode: `def page_items(items, page, page_size):\n    start = (page - 1) * page_size\n    end = start + page_size - 1  # Check the slice boundary\n    return items[start:end]`,
+    instruction: "Fix the off-by-one bug in this API helper. Run the checks to verify page 1, page 2, the final partial page, and an out-of-range page.",
+    acceptance: [
+      "Pages use one-based numbering.",
+      "Each full page contains the requested number of items.",
+      "The final item is not dropped and a page past the end is empty.",
+    ],
+  },
+  {
+    id: "PLAT-214",
+    title: "Invalidate stale payment-method pricing",
+    summary: "A price update succeeds, but checkout keeps showing the old amount.",
+    context: "The pricing service caches payment-method prices. Updates write the new value to the source map but leave the old cache entry in place. Fix the invalidation path so the next read sees the new price without clearing unrelated cache entries.",
+    priority: "Normal",
+    category: "Caching bug",
+    fileName: "pricing_cache.py",
+    language: "python",
+    starterCode: `cache = {}\n\ndef get_price(method_id, prices):\n    if method_id not in cache:\n        cache[method_id] = prices[method_id]\n    return cache[method_id]\n\ndef update_price(method_id, new_price, prices):\n    prices[method_id] = new_price\n    # Invalidate only this payment method's cached price`,
+    instruction: "Fix cache invalidation after a price update. The checks read a price, update it, and verify the next request sees the fresh value.",
+    acceptance: [
+      "The source price is updated.",
+      "A cached value for the updated method is invalidated.",
+      "Other payment-method cache entries remain untouched.",
+    ],
+  },
+];
 
 interface TeammateMessage {
   author: "You" | "Priya";
@@ -244,6 +313,18 @@ const ticketTriageOptions: Array<{
 function SoftwareEngineeringWork() {
   const { progress, updateProgress, saveProgress, saveProgressUpdate } = useProgress();
   const savedWorkplace = progress.workplace;
+  const [activeTicketId, setActiveTicketId] = useState<TicketId>(
+    (savedWorkplace?.activeTicketId as TicketId | undefined) ?? "PAY-142",
+  );
+  const [ticketDrafts, setTicketDrafts] = useState<Record<string, string>>(
+    savedWorkplace?.ticketDrafts ?? {},
+  );
+  const [ticketOutputs, setTicketOutputs] = useState<Record<string, string>>(
+    savedWorkplace?.ticketOutputs ?? {},
+  );
+  const [completedTickets, setCompletedTickets] = useState<string[]>(
+    savedWorkplace?.completedTickets ?? [],
+  );
   const [ticketTriageChoice, setTicketTriageChoice] = useState<TicketTriageChoice | null>(
     savedWorkplace?.ticketTriageChoice ?? null,
   );
@@ -265,7 +346,7 @@ function SoftwareEngineeringWork() {
   const [pullRequestStatus, setPullRequestStatus] =
     useState<PullRequestStatus>(savedWorkplace?.pullRequestStatus ?? "not-created");
   const ticketTriageRequired =
-    ticketTriageChoice === null && pullRequestStatus !== "merged";
+    activeTicketId === "PAY-142" && ticketTriageChoice === null && pullRequestStatus !== "merged";
   const [gitStep, setGitStep] = useState(savedWorkplace?.gitStep ?? 0);
   const [gitCommand, setGitCommand] = useState(savedWorkplace?.gitCommand ?? "");
   const [commitMessage, setCommitMessage] = useState(savedWorkplace?.commitMessage ?? "");
@@ -323,11 +404,21 @@ function SoftwareEngineeringWork() {
   const selectedTriageOption = ticketTriageOptions.find(
     (option) => option.id === ticketTriageChoice,
   );
+  const activeAdditionalTicket = engineeringTickets.find((ticket) => ticket.id === activeTicketId);
+  const activeTicketCode = activeTicketId === "PAY-142"
+    ? paymentCode
+    : ticketDrafts[activeTicketId] ?? activeAdditionalTicket?.starterCode ?? "";
+  const activeTicketTitle = activeAdditionalTicket?.title ?? "Add idempotency protection to payment creation";
+  const activeTicketBrief = activeAdditionalTicket?.context ?? "A retry with the same key should return the original payment; new or missing keys create a new payment.";
 
   const buildWorkplaceProgress = (
     overrides: Partial<WorkplaceProgress> = {},
   ): WorkplaceProgress => ({
     view,
+    activeTicketId,
+    ticketDrafts,
+    ticketOutputs,
+    completedTickets,
     selectedFileName: selectedFile.name,
     paymentCode,
     checkOutput,
@@ -380,6 +471,10 @@ function SoftwareEngineeringWork() {
     }));
   }, [
     view,
+    activeTicketId,
+    ticketDrafts,
+    ticketOutputs,
+    completedTickets,
     selectedFile.name,
     paymentCode,
     checkOutput,
@@ -421,6 +516,22 @@ function SoftwareEngineeringWork() {
     }).catch((saveError: unknown) => {
       console.error("Could not save the PAY-142 investigation starting point.", saveError);
     });
+  };
+
+  const selectEngineeringTicket = (ticketId: TicketId) => {
+    setActiveTicketId(ticketId);
+    setView("ticket");
+  };
+
+  const updateActiveTicketCode = (value: string) => {
+    if (activeTicketId === "PAY-142") {
+      updatePaymentCode(value);
+      return;
+    }
+    setTicketDrafts((previous) => ({ ...previous, [activeTicketId]: value }));
+    setTicketOutputs((previous) => ({ ...previous, [activeTicketId]: "" }));
+    setCompletedTickets((previous) => previous.filter((ticketId) => ticketId !== activeTicketId));
+    setCheckOutput("");
   };
 
   const acknowledgeTeamWelcome = () => {
@@ -512,7 +623,12 @@ function SoftwareEngineeringWork() {
       const reply = await requestSarvamTeammateReply(
         text, history, checksPassed, pullRequestStatus,
         selectedTeammate.name, selectedTeammate.role,
-        { fileName: selectedFile.name, fileContent: selectedFile.code, checkOutput, paymentCode },
+        {
+          ticketId: activeTicketId, ticketTitle: activeTicketTitle, ticketBrief: activeTicketBrief,
+          fileName: activeAdditionalTicket?.fileName ?? selectedFile.name,
+          fileContent: selectedFile.code, checkOutput: ticketOutputs[activeTicketId] ?? checkOutput,
+          paymentCode, currentCode: activeTicketCode,
+        },
       );
       const nextMessages = [...messagesAfterUser, { author: selectedTeammate.name, text: reply }];
       setDirectMessages((previous) => ({
@@ -591,7 +707,12 @@ function SoftwareEngineeringWork() {
       body.append("checks_passed", String(checksPassed));
       body.append("pull_request_status", pullRequestStatus);
       body.append("persona", selectedTeammate.name);
-      body.append("context", JSON.stringify({ fileName: selectedFile.name, fileContent: selectedFile.code, checkOutput, paymentCode }));
+      body.append("context", JSON.stringify({
+        ticketId: activeTicketId, ticketTitle: activeTicketTitle, ticketBrief: activeTicketBrief,
+        fileName: activeAdditionalTicket?.fileName ?? selectedFile.name,
+        fileContent: selectedFile.code, checkOutput: ticketOutputs[activeTicketId] ?? checkOutput,
+        paymentCode, currentCode: activeTicketCode,
+      }));
       const response = await backendFetch("/workplace/teammate/voice", { method: "POST", body });
       const result = await response.json();
       if (!response.ok) throw new Error(result.detail ?? "Voice message failed.");
@@ -664,20 +785,34 @@ function SoftwareEngineeringWork() {
 
   const runChecks = async () => {
     setIsChecking(true);
-    setCheckOutput("Running PAY-142 checks...");
-    setChecksPassed(false);
+    const ticketId = activeTicketId;
+    if (ticketId === "PAY-142") {
+      setCheckOutput("Running PAY-142 checks...");
+      setChecksPassed(false);
+    } else {
+      setTicketOutputs((previous) => ({ ...previous, [ticketId]: "Running checks…" }));
+    }
 
     try {
       const response = await backendFetch("/workplace/check", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ code: paymentCode }),
+        body: JSON.stringify({ code: activeTicketCode, ticket_id: ticketId }),
       });
       const result = await response.json();
-      setChecksPassed(result.success);
-      setCheckOutput(result.stdout || result.stderr || "Checks did not pass.");
+      const output = result.stdout || result.stderr || "Checks did not pass.";
+      if (ticketId === "PAY-142") {
+        setChecksPassed(result.success);
+        setCheckOutput(output);
+      } else {
+        setTicketOutputs((previous) => ({ ...previous, [ticketId]: output }));
+        if (result.success) {
+          setCompletedTickets((previous) => previous.includes(ticketId) ? previous : [...previous, ticketId]);
+        }
+      }
     } catch {
-      setCheckOutput("Could not connect to the Perspective backend.");
+      if (ticketId === "PAY-142") setCheckOutput("Could not connect to the Perspective backend.");
+      else setTicketOutputs((previous) => ({ ...previous, [ticketId]: "Could not connect to the Perspective backend." }));
     } finally {
       setIsChecking(false);
     }
@@ -703,9 +838,12 @@ function SoftwareEngineeringWork() {
         mode: "teammate", message: question, history,
         persona: "Priya", role: "Backend Engineer",
         context: {
+          ticketId: activeTicketId, ticketTitle: activeTicketTitle, ticketBrief: activeTicketBrief,
           checksPassed: String(checksPassed), pullRequestStatus,
-          fileName: selectedFile.name, fileContent: selectedFile.code,
-          checkOutput, paymentCode,
+          fileName: activeAdditionalTicket?.fileName ?? selectedFile.name,
+          fileContent: selectedFile.code,
+          checkOutput: ticketOutputs[activeTicketId] ?? checkOutput,
+          paymentCode, currentCode: activeTicketCode,
         },
       });
       const nextMessages = [...messagesAfterUser, { author: "Priya" as const, text: reply }];
@@ -713,7 +851,10 @@ function SoftwareEngineeringWork() {
       void persistWorkplaceMessages({ teammateMessages: nextMessages })
         .catch((saveError: unknown) => console.error("Could not save Priya's reply.", saveError));
     } catch {
-      const nextMessages = [...messagesAfterUser, { author: "Priya" as const, text: getPriyaReply(question, checksPassed, pullRequestStatus) }];
+      const fallback = activeAdditionalTicket
+        ? `I’m having trouble reaching the team service. For ${activeAdditionalTicket.id}, start by checking this behavior: ${activeAdditionalTicket.context}`
+        : getPriyaReply(question, checksPassed, pullRequestStatus);
+      const nextMessages = [...messagesAfterUser, { author: "Priya" as const, text: fallback }];
       setTeammateMessages(nextMessages);
       void persistWorkplaceMessages({ teammateMessages: nextMessages })
         .catch((saveError: unknown) => console.error("Could not save Priya's reply.", saveError));
@@ -1034,8 +1175,8 @@ function SoftwareEngineeringWork() {
           </button>
           <button
             className={`${view === "repository" ? "active" : ""}${ticketTriageRequired ? " needs-triage" : ""}`}
-            onClick={() => setView(ticketTriageRequired ? "ticket" : "repository")}
-            title={ticketTriageRequired ? "Choose a starting point on PAY-142 first" : undefined}
+            onClick={() => setView(ticketTriageRequired || activeTicketId !== "PAY-142" ? "ticket" : "repository")}
+            title={ticketTriageRequired ? "Choose a starting point on PAY-142 first" : activeTicketId !== "PAY-142" ? "Open the selected ticket workspace" : undefined}
           >
             <span className="rail-icon">R</span>
             Repository
@@ -1081,7 +1222,32 @@ function SoftwareEngineeringWork() {
             </p>
           </div>
 
-          {view === "ticket" ? (
+          {view === "ticket" && (
+            <section className="engineering-ticket-queue" aria-label="Team ticket queue">
+              <div className="engineering-ticket-queue-heading">
+                <div><p className="eyebrow">TEAM BACKLOG</p><strong>Choose a ticket to explore</strong></div>
+                <span>{completedTickets.length + (pullRequestStatus === "merged" ? 1 : 0)} of 4 complete</span>
+              </div>
+              <div className="engineering-ticket-queue-list">
+                <button type="button" className={`engineering-ticket-queue-item${activeTicketId === "PAY-142" ? " active" : ""}`} onClick={() => selectEngineeringTicket("PAY-142")}>
+                  <span className="queue-ticket-id">PAY-142</span><strong>Add payment idempotency</strong><small>{pullRequestStatus === "merged" ? "Complete" : "Payments · Feature"}</small>
+                  <i className={pullRequestStatus === "merged" ? "done" : ""} aria-hidden="true" />
+                </button>
+                {engineeringTickets.map((ticket) => {
+                  const hasDraft = Boolean(ticketDrafts[ticket.id] && ticketDrafts[ticket.id] !== ticket.starterCode);
+                  const complete = completedTickets.includes(ticket.id);
+                  return (
+                    <button type="button" key={ticket.id} className={`engineering-ticket-queue-item${activeTicketId === ticket.id ? " active" : ""}`} onClick={() => selectEngineeringTicket(ticket.id)}>
+                      <span className="queue-ticket-id">{ticket.id}</span><strong>{ticket.title}</strong><small>{complete ? "Complete" : hasDraft ? "In progress" : ticket.category}</small>
+                      <i className={complete ? "done" : ""} aria-hidden="true" />
+                    </button>
+                  );
+                })}
+              </div>
+            </section>
+          )}
+
+          {view === "ticket" ? activeTicketId === "PAY-142" ? (
             <article className="work-ticket">
               <div className="ticket-heading-row">
                 <div className="ticket-id">PAY-142</div>
@@ -1213,7 +1379,32 @@ function SoftwareEngineeringWork() {
                 </button>
               </div>
             </article>
-          ) : view === "repository" ? (
+          ) : activeAdditionalTicket ? (
+            <article className="work-ticket additional-work-ticket">
+              <div className="ticket-heading-row">
+                <div className="ticket-id">{activeAdditionalTicket.id}</div>
+                <span className={`ticket-status${completedTickets.includes(activeAdditionalTicket.id) ? " done" : ""}`}>
+                  {completedTickets.includes(activeAdditionalTicket.id) ? "COMPLETE" : ticketDrafts[activeAdditionalTicket.id] && ticketDrafts[activeAdditionalTicket.id] !== activeAdditionalTicket.starterCode ? "IN PROGRESS" : "OPEN"}
+                </span>
+              </div>
+              <h2>{activeAdditionalTicket.title}</h2>
+              <p className="ticket-summary">{activeAdditionalTicket.summary}</p>
+              <div className="ticket-meta">
+                <div><span>TEAM</span><strong>Payments Engineering</strong></div>
+                <div><span>PRIORITY</span><strong>{activeAdditionalTicket.priority}</strong></div>
+                <div><span>TYPE</span><strong>{activeAdditionalTicket.category}</strong></div>
+              </div>
+              <div className="ticket-section"><h3>What’s happening</h3><p>{activeAdditionalTicket.context}</p></div>
+              <div className="ticket-section"><h3>Acceptance criteria</h3><ul>{activeAdditionalTicket.acceptance.map((criterion, index) => <li className={completedTickets.includes(activeAdditionalTicket.id) ? "criterion-passed" : ""} key={`${activeAdditionalTicket.id}-${index}`}>{criterion}</li>)}</ul></div>
+              <section className="ticket-workbench">
+                <div className="ticket-workbench-heading"><div><p className="eyebrow">{activeAdditionalTicket.id} / {activeAdditionalTicket.fileName}</p><h3>Your workspace</h3></div><span>{activeAdditionalTicket.language.toUpperCase()}</span></div>
+                <p>{activeAdditionalTicket.instruction}</p>
+                <CodeEditor key={activeAdditionalTicket.id} language={activeAdditionalTicket.language} value={activeTicketCode} onChange={updateActiveTicketCode} />
+                <div className="workplace-check-actions"><button type="button" onClick={() => void runChecks()} disabled={isChecking}>{isChecking ? "Running checks…" : "Run checks"}</button><span>Runs against a small, isolated fixture. No external database required.</span></div>
+                {ticketOutputs[activeAdditionalTicket.id] && <div className={`workplace-check-output${completedTickets.includes(activeAdditionalTicket.id) ? " passed" : ""}`}><div className="terminal-label">TEST OUTPUT</div><pre>{ticketOutputs[activeAdditionalTicket.id]}</pre></div>}
+              </section>
+            </article>
+          ) : null : view === "repository" ? (
             <section className="repository-view">
               <div className="repository-heading">
                 <div>
