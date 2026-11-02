@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type FormEvent } from "react";
-import { Check, ArrowLeft, ArrowUp } from "lucide-react";
+import { Check, ArrowLeft, ArrowUp, Orbit } from "lucide-react";
 import { Link } from "react-router-dom";
 import AccountStatus from "../components/AccountStatus";
 import CodeEditor from "../components/CodeEditor";
@@ -557,10 +557,10 @@ function CodingOnboarding() {
 
         <aside className="tutor-panel">
           <div className="tutor-header">
-            <div className="tutor-avatar">P</div>
+            <div className="tutor-avatar"><Orbit size={18} strokeWidth={1.7} aria-hidden="true" /></div>
             <div>
-              <strong>Perspective Tutor</strong>
-              <small>AI learning assistant</small>
+              <strong>ORBIT</strong>
+              <small>Your guide through the unknown</small>
             </div>
             <label className="tutor-model-select">
               <span>Model</span>
@@ -571,6 +571,7 @@ function CodingOnboarding() {
             </label>
           </div>
           <div className="tutor-message" aria-live="polite">
+            <div className="orbit-field-note"><span>FIELD NOTE</span><p>“Every bug leaves a trail.”</p></div>
             {tutorMessages.map((message, index) => (
               <p className={`tutor-chat-message ${message.role}`} key={`${index}-${message.role}`}>
                 {message.content}
@@ -583,7 +584,7 @@ function CodingOnboarding() {
               value={tutorDraft}
               onChange={(event) => setTutorDraft(event.target.value)}
               placeholder="Ask for a hint..."
-              aria-label="Ask the Perspective Tutor"
+              aria-label="Ask ORBIT"
               maxLength={4000}
             />
             <button type="submit" disabled={!tutorDraft.trim() || isTutorReplying} aria-label="Send question">
@@ -600,7 +601,7 @@ function CodingOnboarding() {
               output: output || "No code has been run yet.",
             }}
             onExchange={appendVoiceTutorExchange}
-            label="Ask the tutor by voice"
+            label="Ask ORBIT by voice"
           />
         </aside>
       </div>

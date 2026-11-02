@@ -22,14 +22,17 @@ export default function SarvamVoiceControl({
   const streamRef = useRef<MediaStream | null>(null);
   const chunksRef = useRef<Blob[]>([]);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const recordingClockRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const audioUrlRef = useRef<string | null>(null);
   const [recording, setRecording] = useState(false);
+  const [recordingSeconds, setRecordingSeconds] = useState(0);
   const [busy, setBusy] = useState(false);
   const [status, setStatus] = useState("");
   const [audioUrl, setAudioUrl] = useState("");
 
   useEffect(() => () => {
     if (timerRef.current) clearTimeout(timerRef.current);
+    if (recordingClockRef.current) clearInterval(recordingClockRef.current);
     streamRef.current?.getTracks().forEach((track) => track.stop());
     if (audioUrlRef.current) URL.revokeObjectURL(audioUrlRef.current);
   }, []);
@@ -72,6 +75,8 @@ export default function SarvamVoiceControl({
 
   const stopRecording = () => {
     if (timerRef.current) clearTimeout(timerRef.current);
+    if (recordingClockRef.current) clearInterval(recordingClockRef.current);
+    recordingClockRef.current = null;
     timerRef.current = null;
     if (recorderRef.current?.state === "recording") {
       recorderRef.current.stop();
@@ -99,9 +104,13 @@ export default function SarvamVoiceControl({
       recorderRef.current = recorder;
       recorder.start();
       setRecording(true);
+      setRecordingSeconds(0);
       setStatus("Recording… speak naturally in your language (25 seconds max).");
+      recordingClockRef.current = setInterval(() => setRecordingSeconds((seconds) => seconds + 1), 1000);
       timerRef.current = setTimeout(() => {
         if (recorder.state === "recording") {
+          if (recordingClockRef.current) clearInterval(recordingClockRef.current);
+          recordingClockRef.current = null;
           recorder.stop();
           setRecording(false);
           setStatus("Recording limit reached. Sending your question…");
@@ -124,8 +133,16 @@ export default function SarvamVoiceControl({
         {recording ? <Square size={14} /> : <Mic size={15} />}
         <span>{recording ? "Stop" : label}</span>
       </button>
-      {busy && <span className="sarvam-voice-status" role="status">Sarvam is working…</span>}
-      {!busy && status && <span className="sarvam-voice-status" role="status">{status}</span>}
+      {recording && (
+        <span className="voice-recording-indicator" role="status" aria-live="polite">
+          <i aria-hidden="true" />
+          <strong>Recording</strong>
+          <span>{`0:${String(recordingSeconds).padStart(2, "0")}`}</span>
+          <span className="voice-recording-wave" aria-hidden="true"><i /><i /><i /><i /><i /></span>
+        </span>
+      )}
+      {busy && <span className="sarvam-voice-status" role="status">Sarvam is listening…</span>}
+      {!busy && !recording && status && <span className="sarvam-voice-status" role="status">{status}</span>}
       {audioUrl && <audio className="sarvam-voice-audio" controls src={audioUrl} aria-label="Spoken Sarvam reply" />}
     </div>
   );
