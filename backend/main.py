@@ -54,6 +54,7 @@ class AIMessage(BaseModel):
 
 class AIChatRequest(BaseModel):
     mode: str
+    provider: str = "gemini"
     message: str
     history: list[AIMessage] = Field(default_factory=list)
     context: dict[str, str] = Field(default_factory=dict)
@@ -233,13 +234,23 @@ def build_ai_instructions(request: AIChatRequest) -> str:
 
 @app.post("/ai/chat")
 def ai_chat(request: AIChatRequest, _user: SupabaseUser = Depends(get_current_user)):
+    if request.mode not in {"tutor", "teammate"}:
+        raise HTTPException(status_code=422, detail="Unsupported chat mode.")
+    if request.provider not in {"gemini", "sarvam"}:
+        raise HTTPException(status_code=422, detail="Choose Gemini or Sarvam for chat.")
+    if not request.message.strip() or len(request.message) > 4000:
+        raise HTTPException(status_code=422, detail="Message must be between 1 and 4000 characters.")
+    if request.provider == "sarvam":
+        client = sarvam_client()
+        reply = sarvam_contextual_reply(
+            client, request.mode, request.message.strip(), request.history,
+            request.context, request.persona, request.role,
+        )
+        return {"reply": reply, "provider": "sarvam"}
+
     api_key = settings.gemini_api_key
     if not api_key:
-        return {"reply": "AI chat is not configured yet. Add GEMINI_API_KEY to the backend environment and restart the server."}
-    if request.mode not in {"tutor", "teammate"}:
-        return {"detail": "Unsupported chat mode."}
-    if not request.message.strip() or len(request.message) > 4000:
-        return {"detail": "Message must be between 1 and 4000 characters."}
+        raise HTTPException(status_code=503, detail="Gemini chat is not configured on the backend.")
 
     contents = []
     for item in request.history[-10:]:
@@ -262,7 +273,7 @@ def ai_chat(request: AIChatRequest, _user: SupabaseUser = Depends(get_current_us
         with urllib.request.urlopen(api_request, timeout=30) as response:
             result = json.loads(response.read().decode("utf-8"))
         reply = result["candidates"][0]["content"]["parts"][0]["text"].strip()
-        return {"reply": reply or "I couldn't form a useful reply. Could you ask that another way?"}
+        return {"reply": reply or "I couldn't form a useful reply. Could you ask that another way?", "provider": "gemini"}
     except urllib.error.HTTPError as error:
         if error.code == 429:
             raise HTTPException(

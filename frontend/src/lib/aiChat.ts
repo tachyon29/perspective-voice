@@ -7,6 +7,7 @@ export interface AIChatMessage {
 
 export async function requestAIReply(payload: {
   mode: "tutor" | "teammate";
+  provider?: "gemini" | "sarvam";
   message: string;
   history: AIChatMessage[];
   context: Record<string, string>;
@@ -16,7 +17,7 @@ export async function requestAIReply(payload: {
   const response = await backendFetch("/ai/chat", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(payload),
+    body: JSON.stringify({ ...payload, provider: payload.provider ?? "gemini" }),
   });
   const result = await response.json();
   if (!response.ok) {

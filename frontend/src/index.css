@@ -477,6 +477,23 @@ button:hover {
   border-bottom: 1px solid #e8e8e8;
 }
 
+.onboarding-header-start {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+}
+
+.onboarding-back-home {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: #656b72;
+  font-size: 12px;
+  text-decoration: none;
+}
+
+.onboarding-back-home:hover { color: #171717; }
+
 .brand {
   font-size: 18px;
   font-weight: 650;
@@ -721,6 +738,25 @@ button:hover {
   padding-bottom: 20px;
 
   border-bottom: 1px solid #eeeeee;
+}
+
+.tutor-model-select {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: #777;
+  font-size: 10px;
+}
+
+.tutor-model-select select {
+  max-width: 92px;
+  padding: 5px 20px 5px 7px;
+  border: 1px solid #e4e6e8;
+  border-radius: 5px;
+  background: #fff;
+  color: #30343a;
+  font-size: 11px;
 }
 
 .tutor-avatar {

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type FormEvent } from "react";
-import { Check, ArrowUp } from "lucide-react";
+import { Check, ArrowLeft, ArrowUp } from "lucide-react";
 import { Link } from "react-router-dom";
 import AccountStatus from "../components/AccountStatus";
 import CodeEditor from "../components/CodeEditor";
@@ -175,6 +175,7 @@ function CodingOnboarding() {
     ],
   );
   const [tutorDraft, setTutorDraft] = useState("");
+  const [chatProvider, setChatProvider] = useState<"gemini" | "sarvam">("gemini");
   const [isTutorReplying, setIsTutorReplying] = useState(false);
   const initialized = useRef(false);
   const completedMissions = savedOnboarding?.completedMissions ?? [];
@@ -371,6 +372,7 @@ function CodingOnboarding() {
     try {
       const reply = await requestAIReply({
         mode: "tutor",
+        provider: chatProvider,
         message: question,
         history,
         context: {
@@ -410,7 +412,10 @@ function CodingOnboarding() {
   return (
     <main className="onboarding">
       <header className="onboarding-header">
-        <div className="brand">perspective</div>
+        <div className="onboarding-header-start">
+          <Link className="onboarding-back-home" to="/"><ArrowLeft size={15} /> Back to home</Link>
+          <div className="brand">perspective</div>
+        </div>
         <div className="progress">
           <span>CODING ONBOARDING</span>
           <strong>{currentMission} / {missions.length}</strong>
@@ -557,6 +562,13 @@ function CodingOnboarding() {
               <strong>Perspective Tutor</strong>
               <small>AI learning assistant</small>
             </div>
+            <label className="tutor-model-select">
+              <span>Model</span>
+              <select value={chatProvider} onChange={(event) => setChatProvider(event.target.value as "gemini" | "sarvam")} aria-label="Choose chat model">
+                <option value="gemini">Gemini</option>
+                <option value="sarvam">Sarvam</option>
+              </select>
+            </label>
           </div>
           <div className="tutor-message" aria-live="polite">
             {tutorMessages.map((message, index) => (
