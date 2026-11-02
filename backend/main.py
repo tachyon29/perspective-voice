@@ -1,5 +1,5 @@
 import ast
-from fastapi import FastAPI, HTTPException, UploadFile, File, Form, Depends
+from fastapi import FastAPI, HTTPException, UploadFile, File, Form, Depends, Request
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 import shlex
@@ -20,6 +20,19 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+@app.middleware("http")
+async def set_vercel_request_context(request: Request, call_next):
+    # Vercel passes its short-lived Sandbox OIDC token on each function request.
+    # The SDK reads it from this request-scoped header context.
+    if settings.vercel_environment:
+        from vercel.headers import set_headers
+
+        set_headers(request.headers)
+    return await call_next(request)
+
+
 class CodeRequest(BaseModel):
     code: str
     mission: int = 1

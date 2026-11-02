@@ -35,6 +35,7 @@ class Settings(BaseSettings):
     sarvam_chat_model: str = "sarvam-105b-conversations"
     code_runner_image: str = "python:3.12-alpine"
     code_runner_timeout_seconds: int = 5
+    vercel_environment: bool = os.getenv("VERCEL") == "1"
 
     @property
     def allowed_origins(self) -> List[str]:

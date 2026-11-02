@@ -15,7 +15,11 @@ pip install -r requirements.txt
 python -m uvicorn main:app --reload --port 8000
 ```
 
-Learner code execution still requires Docker. It runs submissions in a restricted container; keep the Docker socket and API server private from untrusted deployments.
+Locally, learner code execution requires Docker and runs each submission in a short-lived restricted container with no network, limited memory/CPU/processes, and a read-only filesystem.
+
+On Vercel, submissions run in Vercel Sandbox isolated microVMs with outbound networking disabled. No Docker daemon or separate VM is needed. The API registers Vercel's request headers so the Sandbox SDK can use Vercel's short-lived OIDC token; there is no static Vercel token to store.
+
+Vercel Hobby includes monthly Sandbox quotas. Vercel states that sandbox creation pauses after the included quota is reached and no additional usage is charged on Hobby. See [Vercel Sandbox pricing and quotas](https://vercel.com/docs/sandbox/pricing). Local runs continue to use Docker.
 
 ## Supabase Auth and progress
 

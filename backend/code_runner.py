@@ -26,6 +26,10 @@ def run_python(code: str, *, timeout: Optional[int] = None) -> RunResult:
     if len(code.encode("utf-8")) > MAX_CODE_BYTES:
         return RunResult("", "Code is too large to run.", 1)
 
+    effective_timeout = timeout or settings.code_runner_timeout_seconds
+    if os.getenv("VERCEL") == "1":
+        return _run_in_vercel_sandbox(code, effective_timeout)
+
     container_name = f"perspective-run-{uuid.uuid4().hex}"
     path = None
     try:
@@ -49,7 +53,7 @@ def run_python(code: str, *, timeout: Optional[int] = None) -> RunResult:
                 command,
                 capture_output=True,
                 text=True,
-                timeout=timeout or settings.code_runner_timeout_seconds,
+                timeout=effective_timeout,
                 check=False,
             )
         except subprocess.TimeoutExpired as exc:
@@ -65,6 +69,34 @@ def run_python(code: str, *, timeout: Optional[int] = None) -> RunResult:
     finally:
         if path and os.path.exists(path):
             os.remove(path)
+
+
+def _run_in_vercel_sandbox(code: str, timeout: int) -> RunResult:
+    """Run user code in Vercel's isolated microVMs when deployed on Vercel."""
+    try:
+        from vercel.sandbox import NetworkPolicy, SandboxResources, sync as sandbox
+
+        with sandbox.create_sandbox(
+            execution_time_limit=30,
+            resources=SandboxResources(vcpus=1),
+            network_policy=NetworkPolicy.deny_all(),
+        ) as box:
+            result = box.run_process(
+                "python",
+                ["-c", code],
+                kill_after=timeout,
+                capture_output=True,
+            )
+        return RunResult(
+            _limit_output(result.stdout or ""),
+            _limit_output(result.stderr or ""),
+            result.returncode,
+            result.returncode == 124,
+        )
+    except TimeoutError:
+        return RunResult("", "Execution timed out.", 124, True)
+    except Exception:
+        return RunResult("", "Hosted code runner is unavailable. Please try again shortly.", 127)
 
 
 def _decode_limited(value: Optional[Union[str, bytes]]) -> str:
