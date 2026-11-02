@@ -26,7 +26,11 @@ function Landing() {
           feels like.
         </p>
 
-        <button>Explore careers</button>
+        <button
+          onClick={() => document.getElementById("careers")?.scrollIntoView({ behavior: "smooth" })}
+        >
+          Explore careers
+        </button>
       </section>
 
       <section id="careers">
