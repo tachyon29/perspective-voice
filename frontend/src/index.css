@@ -1642,6 +1642,11 @@ button:hover {
   grid-template-columns: 210px minmax(0, 1fr);
 }
 
+.workplace-layout.has-ticket-orbit {
+  grid-template-columns: 210px minmax(0, 1fr) 310px;
+  align-items: start;
+}
+
 .workplace-rail {
   padding: 28px 14px 20px;
   display: flex;
@@ -1728,6 +1733,83 @@ button:hover {
   padding: 48px 56px 72px;
   margin: 0 auto;
   animation: workplace-arrive 420ms ease-out both;
+}
+
+.workplace-layout.has-ticket-orbit .workplace-main {
+  width: 100%;
+  max-width: 1120px;
+  padding: 38px 30px 56px;
+}
+
+.workplace-orbit-panel {
+  position: sticky;
+  top: 62px;
+  align-self: start;
+  box-sizing: border-box;
+  height: calc(100vh - 62px);
+  min-height: 420px;
+  padding: 15px 14px 12px;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border-left: 1px solid #e7e8eb;
+  background: #fff;
+}
+
+.workplace-orbit-header {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding-bottom: 11px;
+  border-bottom: 1px solid #eceeec;
+}
+
+.workplace-orbit-mark {
+  width: 30px;
+  height: 30px;
+  flex: 0 0 30px;
+  display: grid;
+  place-items: center;
+  border: 1px solid #dce6e0;
+  border-radius: 8px;
+  background: #f2f6f3;
+  color: #315b4c;
+}
+
+.workplace-orbit-header > div { min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+.workplace-orbit-header > div strong { color: #303a34; font-size: 10px; letter-spacing: .11em; }
+.workplace-orbit-header > div small { color: #8b948e; font-size: 8px; }
+.workplace-orbit-model { display: flex; flex-direction: column; gap: 3px; margin-left: auto; color: #8a938d; font-size: 7px; font-weight: 700; letter-spacing: .09em; }
+.workplace-orbit-model select { width: 78px; padding: 5px 19px 5px 7px; appearance: none; border: 1px solid #e1e6e2; border-radius: 5px; outline: 0; background: #f8faf8 url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%236d7971' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E") no-repeat right 6px center / 11px 11px; color: #46524a; font-size: 9px; letter-spacing: 0; cursor: pointer; }
+.workplace-orbit-model select:focus-visible { border-color: #779682; box-shadow: 0 0 0 2px rgba(77, 119, 91, .12); }
+
+.workplace-orbit-messages {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+  padding: 13px 2px 8px;
+}
+
+.workplace-orbit-messages .tutor-chat-message { white-space: pre-wrap; overflow-wrap: anywhere; }
+.workplace-orbit-compose { flex: 0 0 auto; display: flex; align-items: stretch; margin-top: 8px; overflow: hidden; border: 1px solid #dfe3e0; border-radius: 7px; background: #fff; }
+.workplace-orbit-compose:focus-within { border-color: #a8b9ad; box-shadow: 0 0 0 2px rgba(77, 119, 91, .08); }
+.workplace-orbit-compose textarea { min-width: 0; min-height: 48px; max-height: 120px; flex: 1; resize: vertical; padding: 10px; border: 0; outline: 0; background: transparent; color: #343d37; font: inherit; font-size: 11px; line-height: 1.45; }
+.workplace-orbit-compose button { width: 34px; flex: 0 0 34px; display: grid; place-items: center; align-self: flex-end; margin: 5px; padding: 0; border-radius: 5px; background: #344b3d; color: #fff; }
+.workplace-orbit-compose button:disabled { opacity: .38; cursor: not-allowed; }
+
+@media (max-width: 1100px) {
+  .workplace-layout.has-ticket-orbit { grid-template-columns: 190px minmax(0, 1fr); }
+  .workplace-layout.has-ticket-orbit .workplace-main { padding: 34px 26px 42px; }
+  .workplace-orbit-panel { position: static; grid-column: 2; width: min(100% - 52px, 760px); height: 480px; min-height: 400px; margin: 0 auto 24px; border: 1px solid #e7e8eb; border-radius: 8px; }
+}
+
+@media (max-width: 760px) {
+  .workplace-layout.has-ticket-orbit { display: block; }
+  .workplace-layout.has-ticket-orbit .workplace-main { padding: 30px 16px 36px; }
+  .workplace-layout.has-ticket-orbit .workplace-orbit-panel { width: calc(100% - 32px); height: 480px; margin: 0 16px 24px; }
 }
 
 @keyframes workplace-arrive {

@@ -1,9 +1,10 @@
 import { useEffect, useRef, useState, type CSSProperties, type FormEvent } from "react";
+import { ArrowUp, Orbit } from "lucide-react";
 import { Link } from "react-router-dom";
 import CodeEditor from "../components/CodeEditor";
 import AccountStatus from "../components/AccountStatus";
 import SarvamVoiceControl from "../components/SarvamVoiceControl";
-import { requestAIReply } from "../lib/aiChat";
+import { requestAIReply, type AIChatMessage } from "../lib/aiChat";
 import { backendFetch } from "../lib/api";
 import {
   useProgress,
@@ -325,6 +326,12 @@ function SoftwareEngineeringWork() {
   const [completedTickets, setCompletedTickets] = useState<string[]>(
     savedWorkplace?.completedTickets ?? [],
   );
+  const [ticketChatMessages, setTicketChatMessages] = useState<Record<string, AIChatMessage[]>>(
+    savedWorkplace?.ticketChatMessages ?? {},
+  );
+  const [ticketChatDraft, setTicketChatDraft] = useState("");
+  const [ticketChatProvider, setTicketChatProvider] = useState<"gemini" | "sarvam">("gemini");
+  const [isTicketChatReplying, setIsTicketChatReplying] = useState(false);
   const [ticketTriageChoice, setTicketTriageChoice] = useState<TicketTriageChoice | null>(
     savedWorkplace?.ticketTriageChoice ?? null,
   );
@@ -410,6 +417,8 @@ function SoftwareEngineeringWork() {
     : ticketDrafts[activeTicketId] ?? activeAdditionalTicket?.starterCode ?? "";
   const activeTicketTitle = activeAdditionalTicket?.title ?? "Add idempotency protection to payment creation";
   const activeTicketBrief = activeAdditionalTicket?.context ?? "A retry with the same key should return the original payment; new or missing keys create a new payment.";
+  const activeTicketChatMessages = ticketChatMessages[activeTicketId] ?? [];
+  const ticketChatVisible = view === "ticket" || view === "repository";
 
   const buildWorkplaceProgress = (
     overrides: Partial<WorkplaceProgress> = {},
@@ -419,6 +428,7 @@ function SoftwareEngineeringWork() {
     ticketDrafts,
     ticketOutputs,
     completedTickets,
+    ticketChatMessages,
     selectedFileName: selectedFile.name,
     paymentCode,
     checkOutput,
@@ -451,6 +461,60 @@ function SoftwareEngineeringWork() {
       },
     }));
 
+  const saveActiveTicketChat = (ticketId: TicketId, messages: AIChatMessage[]) => {
+    setTicketChatMessages((previous) => ({ ...previous, [ticketId]: messages }));
+    void saveProgressUpdate((previous) => ({
+      ...previous,
+      journeyStage: "workplace",
+      workplace: {
+        ...(previous.workplace ?? buildWorkplaceProgress()),
+        ticketChatMessages: {
+          ...(previous.workplace?.ticketChatMessages ?? ticketChatMessages),
+          [ticketId]: messages,
+        },
+      },
+    })).catch((saveError: unknown) => console.error("Could not save the ticket help conversation.", saveError));
+  };
+
+  const askOrbitAboutTicket = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const question = ticketChatDraft.trim();
+    if (!question || isTicketChatReplying) return;
+
+    const ticketId = activeTicketId;
+    const messagesBefore = ticketChatMessages[ticketId] ?? [];
+    const messagesAfterUser: AIChatMessage[] = [...messagesBefore, { role: "user", content: question }];
+    saveActiveTicketChat(ticketId, messagesAfterUser);
+    setTicketChatDraft("");
+    setIsTicketChatReplying(true);
+    try {
+      const reply = await requestAIReply({
+        mode: "teammate",
+        provider: ticketChatProvider,
+        message: question,
+        history: messagesBefore.slice(-8),
+        persona: "ORBIT",
+        role: "Software Engineering Guide",
+        context: {
+          ticketId,
+          ticketTitle: activeTicketTitle,
+          ticketBrief: activeTicketBrief,
+          currentCode: activeTicketCode,
+          fileName: activeAdditionalTicket?.fileName ?? selectedFile.name,
+          checkOutput: ticketOutputs[activeTicketId] ?? checkOutput,
+          checksPassed: String(completedTickets.includes(ticketId) || (ticketId === "PAY-142" && checksPassed)),
+          acceptanceCriteria: activeAdditionalTicket?.acceptance.join("; ") ?? "Same key returns the original payment; a new or missing key creates a payment.",
+        },
+      });
+      saveActiveTicketChat(ticketId, [...messagesAfterUser, { role: "assistant", content: reply }]);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "ORBIT couldn't reply just now. Try again in a moment.";
+      saveActiveTicketChat(ticketId, [...messagesAfterUser, { role: "assistant", content: message }]);
+    } finally {
+      setIsTicketChatReplying(false);
+    }
+  };
+
   const mergePullRequest = () => {
     setPullRequestStatus("merged");
     const mergedProgress = {
@@ -475,6 +539,7 @@ function SoftwareEngineeringWork() {
     ticketDrafts,
     ticketOutputs,
     completedTickets,
+    ticketChatMessages,
     selectedFile.name,
     paymentCode,
     checkOutput,
@@ -1163,7 +1228,7 @@ function SoftwareEngineeringWork() {
         <AccountStatus />
       </header>
 
-      <div className="workplace-layout">
+      <div className={`workplace-layout${ticketChatVisible ? " has-ticket-orbit" : ""}`}>
         <aside className="workplace-rail" aria-label="Workspace navigation">
           <p className="workplace-rail-label">WORKSPACE</p>
           <button
@@ -1829,6 +1894,43 @@ function SoftwareEngineeringWork() {
             </section>
           ) : null}
         </section>
+        {ticketChatVisible && (
+          <aside className="workplace-orbit-panel" aria-label={`ORBIT help for ${activeTicketId}`}>
+            <header className="workplace-orbit-header">
+              <span className="workplace-orbit-mark"><Orbit size={17} strokeWidth={1.8} aria-hidden="true" /></span>
+              <div><strong>ORBIT</strong><small>{activeTicketId} · Ticket guide</small></div>
+              <label className="workplace-orbit-model">
+                <span>MODEL</span>
+                <select value={ticketChatProvider} onChange={(event) => setTicketChatProvider(event.target.value as "gemini" | "sarvam")} aria-label="Choose ORBIT chat model">
+                  <option value="gemini">Gemini</option>
+                  <option value="sarvam">Sarvam</option>
+                </select>
+              </label>
+            </header>
+            <div className="workplace-orbit-messages" aria-live="polite">
+              {activeTicketChatMessages.length === 0 && (
+                <p className="tutor-chat-message assistant">I’m here to help with {activeTicketId}. Tell me what you’ve tried or where you’re stuck, and we’ll work through it together.</p>
+              )}
+              {activeTicketChatMessages.map((message, index) => (
+                <p className={`tutor-chat-message ${message.role}`} key={`${activeTicketId}-${index}-${message.role}`}>{message.content}</p>
+              ))}
+              {isTicketChatReplying && <p className="tutor-chat-status">ORBIT is thinking…</p>}
+            </div>
+            <form className="workplace-orbit-compose" onSubmit={askOrbitAboutTicket}>
+              <textarea
+                value={ticketChatDraft}
+                onChange={(event) => setTicketChatDraft(event.target.value)}
+                placeholder={`Ask about ${activeTicketId}…`}
+                aria-label={`Ask ORBIT about ${activeTicketId}`}
+                rows={2}
+                maxLength={4000}
+              />
+              <button type="submit" disabled={!ticketChatDraft.trim() || isTicketChatReplying} aria-label="Send question to ORBIT">
+                <ArrowUp size={16} />
+              </button>
+            </form>
+          </aside>
+        )}
       </div>
     </main>
   );

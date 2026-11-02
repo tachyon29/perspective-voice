@@ -43,6 +43,7 @@ export interface WorkplaceProgress {
   ticketDrafts?: Record<string, string>;
   ticketOutputs?: Record<string, string>;
   completedTickets?: string[];
+  ticketChatMessages?: Record<string, Array<{ role: "user" | "assistant"; content: string }>>;
   selectedFileName: string;
   paymentCode: string;
   checkOutput: string;
