@@ -77,8 +77,6 @@ Configure the required API keys and environment variables before running the app
 
 Aman
 
-Built for the **Sarvam AI Hackathon**, exploring how voice-first, multilingual AI can make career exploration accessible to everyone.
-
 ---
 
 ⭐ If you like the idea, consider starring the repository!
