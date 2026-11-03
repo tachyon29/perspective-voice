@@ -110,6 +110,13 @@ const ticketCelebrations: Record<TicketId, { title: string; message: string }> =
   "DATA-208": { title: "Query tuned. History loads faster.", message: "You corrected the filter and gave the database an index that fits the query." },
   "ARCH-401": { title: "You designed the payment system!", message: "You connected reliability, persistence, and retry safety into one end-to-end flow." },
 };
+const ticketGuides: Record<TicketId, { flow: string; bug: string; firstStep: string; file: string }> = {
+  "PAY-142": { flow: "routes.py receives the request → payments.py creates the payment → test_payments.py records expected behavior.", bug: "A retry with the same idempotency key currently creates another payment, which can charge a customer twice.", firstStep: "Trace the route into create_payment(), then compare the function with the retry cases in the tests.", file: "Start with routes.py, payments.py, and test_payments.py." },
+  "API-317": { flow: "The API receives a one-based page → pagination.py calculates the slice → the endpoint returns those transactions.", bug: "The slice end is one too small, so the last transaction on each page disappears.", firstStep: "Check how Python slices treat the end position, then compare page 1, the final partial page, and a page past the end.", file: "Edit pagination.py. The checks supply representative transaction lists." },
+  "PLAT-214": { flow: "Checkout requests a price → get_price() reads or caches it → update_price() changes the source price.", bug: "The source value changes but the old cached value remains, so checkout keeps showing stale pricing.", firstStep: "Follow the cache key used by get_price(), then invalidate only that key after an update.", file: "Edit pricing_cache.py. Keep unrelated payment-method entries cached." },
+  "DATA-208": { flow: "The history query filters payments by status and date → groups amounts by customer → sorts and returns the top two.", bug: "The query uses the wrong success status and has no matching composite index, causing incorrect totals and a table scan.", firstStep: "Correct the filter and date boundary, add the requested index, then run the query and inspect the returned totals.", file: "Write payment_history.sql. This is MySQL-compatible SQL checked on an isolated SQLite fixture." },
+  "ARCH-401": { flow: "Customer app → API Gateway → payment service → idempotency store and payments database.", bug: "Retries must not create duplicate charges, while the service still needs a durable payment record and observable follow-up work.", firstStep: "Place the five core components, connect the request path, then add the idempotency check before the database write.", file: "Build the architecture on the canvas. Queue, worker, and monitoring are useful extensions." },
+};
 
 function ticketExpertContext(ticketId: TicketId) {
   const contexts: Record<TicketId, string> = {
@@ -391,6 +398,7 @@ function SoftwareEngineeringWork() {
       ? "ticket"
       : savedWorkplace?.view ?? "ticket",
   );
+  const [seenTicketGuides, setSeenTicketGuides] = useState<string[]>(savedWorkplace?.seenTicketGuides ?? []);
   const [selectedFile, setSelectedFile] = useState(savedFile);
   const [paymentCode, setPaymentCode] = useState(
     savedWorkplace?.paymentCode ?? repositoryFiles[0].code,
@@ -467,6 +475,7 @@ function SoftwareEngineeringWork() {
   const activeTicketBrief = activeAdditionalTicket?.context ?? ticketExpertContext(activeTicketId);
   const activeTicketChatMessages = ticketChatMessages[activeTicketId] ?? [];
   const ticketChatVisible = view === "ticket" || view === "repository";
+  const ticketGuideOpen = ticketChatVisible && !seenTicketGuides.includes(activeTicketId);
   const isTicketComplete = (ticketId: TicketId) => ticketId === "PAY-142"
     ? checksPassed || pullRequestStatus === "merged"
     : completedTickets.includes(ticketId);
@@ -489,6 +498,7 @@ function SoftwareEngineeringWork() {
     ticketChatMessages,
     systemDesignDraft,
     systemDesignReview,
+    seenTicketGuides,
     selectedFileName: selectedFile.name,
     paymentCode,
     checkOutput,
@@ -602,6 +612,7 @@ function SoftwareEngineeringWork() {
     ticketChatMessages,
     systemDesignDraft,
     systemDesignReview,
+    seenTicketGuides,
     selectedFile.name,
     paymentCode,
     checkOutput,
@@ -650,6 +661,10 @@ function SoftwareEngineeringWork() {
     setActiveTicketId(ticketId);
     setView("ticket");
     setTicketCelebrationId(null);
+  };
+
+  const dismissTicketGuide = () => {
+    setSeenTicketGuides((previous) => previous.includes(activeTicketId) ? previous : [...previous, activeTicketId]);
   };
 
   const updateActiveTicketCode = (value: string) => {
@@ -1331,6 +1346,18 @@ function SoftwareEngineeringWork() {
         <AccountStatus />
       </header>
 
+      {ticketGuideOpen && ticketChatVisible && (
+        <div className="ticket-guide-backdrop" role="presentation">
+          <section className="ticket-guide-dialog" role="dialog" aria-modal="true" aria-labelledby="ticket-guide-title">
+            <p className="eyebrow">{activeTicketId} · BEFORE YOU START</p>
+            <h2 id="ticket-guide-title">How this part of the service works</h2>
+            <div className="ticket-guide-block"><span>THE FLOW</span><p>{ticketGuides[activeTicketId].flow}</p></div>
+            <div className="ticket-guide-block problem"><span>THE PROBLEM TO SOLVE</span><p>{ticketGuides[activeTicketId].bug}</p></div>
+            <div className="ticket-guide-first-step"><strong>Start here</strong><p>{ticketGuides[activeTicketId].firstStep}</p><small>{ticketGuides[activeTicketId].file}</small></div>
+            <footer><span>Need a hand? ORBIT and Rahul know this ticket’s context.</span><button type="button" onClick={dismissTicketGuide}>Got it · show me the ticket <span aria-hidden="true">→</span></button></footer>
+          </section>
+        </div>
+      )}
       <div className={`workplace-layout${ticketChatVisible ? " has-ticket-orbit" : ""}`}>
         <aside className="workplace-rail" aria-label="Workspace navigation">
           <p className="workplace-rail-label">WORKSPACE</p>
@@ -2031,15 +2058,14 @@ function SoftwareEngineeringWork() {
               </form>
             </section>
           ) : null}
+          {ticketChatVisible && (
+            <aside className="workplace-ticket-expert" aria-label="Teammate with context on this ticket">
+              <div className="ticket-expert-person"><span>R</span><div><strong>Rahul · Senior Backend Engineer</strong><small>Worked on the system behind {activeTicketId}</small></div></div>
+              <p>{ticketExpertContext(activeTicketId)}</p>
+              <button type="button" onClick={() => setView("dm-rahul")}>Ask Rahul about this ticket <span aria-hidden="true">→</span></button>
+            </aside>
+          )}
         </section>
-        {ticketChatVisible && (
-          <aside className="workplace-ticket-expert" aria-label="Teammate with context on this ticket">
-            <p className="eyebrow">A TEAMMATE KNOWS THIS SYSTEM</p>
-            <div className="ticket-expert-person"><span>R</span><div><strong>Rahul</strong><small>Senior Backend Engineer</small></div></div>
-            <p>{ticketExpertContext(activeTicketId)}</p>
-            <button type="button" onClick={() => setView("dm-rahul")}>Chat or speak with Rahul <span aria-hidden="true">→</span></button>
-          </aside>
-        )}
         {ticketChatVisible && (
           <aside className="workplace-orbit-panel" aria-label={`ORBIT help for ${activeTicketId}`}>
             <header className="workplace-orbit-header">

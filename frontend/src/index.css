@@ -1643,7 +1643,7 @@ button:hover {
 }
 
 .workplace-layout.has-ticket-orbit {
-  grid-template-columns: 210px minmax(390px, 1fr) 190px 310px;
+  grid-template-columns: 210px minmax(0, 1fr) 330px;
   align-items: start;
 }
 
@@ -1737,30 +1737,46 @@ button:hover {
 
 .workplace-layout.has-ticket-orbit .workplace-main {
   width: 100%;
-  max-width: 1120px;
-  padding: 38px 30px 56px;
+  max-width: 1500px;
+  padding: 38px 36px 42px;
 }
 
 .workplace-ticket-expert {
-  position: sticky;
-  top: 76px;
-  align-self: start;
-  margin-top: 38px;
-  padding: 12px 11px;
+  margin-top: 26px;
+  padding: 14px 16px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 5px 18px;
   border: 1px solid #e5e9e6;
   border-radius: 8px;
   background: #fbfcfb;
 }
 
-.workplace-ticket-expert > .eyebrow { margin: 0 0 10px; color: #909a93; font-size: 7px; font-weight: 700; letter-spacing: .1em; line-height: 1.4; }
 .ticket-expert-person { display: flex; align-items: center; gap: 8px; }
 .ticket-expert-person > span { width: 28px; height: 28px; flex: 0 0 28px; display: grid; place-items: center; border-radius: 50%; background: #e9eeeb; color: #435a4a; font-size: 11px; font-weight: 650; }
 .ticket-expert-person > div { min-width: 0; display: flex; flex-direction: column; gap: 3px; }
-.ticket-expert-person strong { color: #39423c; font-size: 10px; }
-.ticket-expert-person small { color: #8b938e; font-size: 8px; line-height: 1.3; }
-.workplace-ticket-expert > p:not(.eyebrow) { margin: 10px 0; color: #69736c; font-size: 9px; line-height: 1.5; }
-.workplace-ticket-expert > button { width: 100%; padding: 7px 8px; display: flex; justify-content: space-between; align-items: center; gap: 4px; border: 1px solid #dce4de; border-radius: 5px; background: #fff; color: #45604e; font-size: 8px; font-weight: 600; text-align: left; cursor: pointer; }
+.ticket-expert-person strong { color: #39423c; font-size: 11px; }
+.ticket-expert-person small { color: #8b938e; font-size: 9px; line-height: 1.3; }
+.workplace-ticket-expert > p { grid-column: 1; margin: 0 0 0 36px; color: #69736c; font-size: 10px; line-height: 1.5; }
+.workplace-ticket-expert > button { grid-column: 2; grid-row: 1 / span 2; padding: 9px 11px; display: flex; justify-content: space-between; align-items: center; gap: 14px; border: 1px solid #dce4de; border-radius: 5px; background: #fff; color: #45604e; font-size: 9px; font-weight: 600; text-align: left; cursor: pointer; }
 .workplace-ticket-expert > button:hover { background: #f4f8f5; border-color: #bfcec3; }
+
+.ticket-guide-backdrop { position: fixed; z-index: 1000; inset: 0; padding: 20px; display: grid; place-items: center; background: rgba(26, 31, 28, .42); }
+.ticket-guide-dialog { width: min(600px, 100%); max-height: calc(100vh - 40px); overflow-y: auto; padding: 26px; border: 1px solid #e3e8e4; border-radius: 10px; background: #fff; box-shadow: 0 20px 70px rgba(17, 25, 19, .2); }
+.ticket-guide-dialog > .eyebrow { margin: 0 0 8px; color: #75877b; font-size: 9px; font-weight: 700; letter-spacing: .1em; }
+.ticket-guide-dialog h2 { margin: 0 0 18px; color: #29352d; font-size: 21px; font-weight: 620; letter-spacing: -.025em; }
+.ticket-guide-block { margin-top: 10px; padding: 13px 14px; border: 1px solid #e8ece8; border-radius: 6px; background: #fafbfa; }
+.ticket-guide-block span,.ticket-guide-first-step > strong { color: #758278; font-size: 8px; font-weight: 700; letter-spacing: .09em; }
+.ticket-guide-block p,.ticket-guide-first-step p { margin: 6px 0 0; color: #556159; font-size: 11px; line-height: 1.6; }
+.ticket-guide-block.problem { border-color: #efe4d7; background: #fdfaf6; }
+.ticket-guide-block.problem span { color: #927553; }
+.ticket-guide-first-step { margin-top: 13px; padding: 4px 2px; }
+.ticket-guide-first-step > strong { color: #4c6753; }
+.ticket-guide-first-step small { display: block; margin-top: 7px; color: #78827b; font-size: 9px; line-height: 1.5; }
+.ticket-guide-dialog footer { margin-top: 18px; padding-top: 15px; display: flex; align-items: center; justify-content: space-between; gap: 14px; border-top: 1px solid #eceeec; }
+.ticket-guide-dialog footer > span { color: #838c85; font-size: 9px; line-height: 1.45; }
+.ticket-guide-dialog footer button { flex: 0 0 auto; padding: 10px 12px; border: 1px solid #405b48; border-radius: 5px; background: #405b48; color: #fff; font-size: 10px; font-weight: 600; cursor: pointer; }
 
 .workplace-orbit-panel {
   position: sticky;
@@ -1824,14 +1840,18 @@ button:hover {
 @media (max-width: 1200px) {
   .workplace-layout.has-ticket-orbit { grid-template-columns: 190px minmax(0, 1fr); }
   .workplace-layout.has-ticket-orbit .workplace-main { padding: 34px 26px 42px; }
-  .workplace-ticket-expert { position: static; grid-column: 2; width: min(100% - 52px, 760px); margin: 0 auto 10px; }
-  .workplace-orbit-panel { position: static; grid-column: 2; width: min(100% - 52px, 760px); height: 480px; min-height: 400px; margin: 0 auto 24px; border: 1px solid #e7e8eb; border-radius: 8px; }
+  .workplace-orbit-panel { position: static; grid-column: 2; width: min(100% - 52px, 940px); height: 480px; min-height: 400px; margin: 0 auto 24px; border: 1px solid #e7e8eb; border-radius: 8px; }
 }
 
 @media (max-width: 760px) {
   .workplace-layout.has-ticket-orbit { display: block; }
   .workplace-layout.has-ticket-orbit .workplace-main { padding: 30px 16px 36px; }
-  .workplace-layout.has-ticket-orbit .workplace-ticket-expert { width: calc(100% - 32px); margin: 0 16px 10px; }
+  .workplace-layout.has-ticket-orbit .workplace-ticket-expert { margin: 22px 0 0; grid-template-columns: 1fr; }
+  .workplace-ticket-expert > p { grid-column: 1; margin-left: 36px; }
+  .workplace-ticket-expert > button { grid-column: 1; grid-row: auto; }
+  .ticket-guide-dialog { padding: 20px; }
+  .ticket-guide-dialog footer { align-items: stretch; flex-direction: column; }
+  .ticket-guide-dialog footer button { width: 100%; }
   .workplace-layout.has-ticket-orbit .workplace-orbit-panel { width: calc(100% - 32px); height: 480px; margin: 0 16px 24px; }
 }
 
@@ -2277,7 +2297,7 @@ button:hover {
 .repository-browser {
   min-height: 320px;
   display: grid;
-  grid-template-columns: 190px minmax(0, 1fr);
+  grid-template-columns: 170px minmax(0, 1fr);
   border: 1px solid #e5e7ea;
   border-radius: 7px;
   overflow: hidden;
@@ -2309,6 +2329,7 @@ button:hover {
 .repository-file-content {
   min-width: 0;
 }
+.repository-file-content .code-editor { width: 100%; min-width: 0; overflow: hidden; }
 
 .repository-file-header {
   min-height: 42px;

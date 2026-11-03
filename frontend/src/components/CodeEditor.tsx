@@ -21,7 +21,7 @@ function CodeEditor({ value, onChange, language = "python", readOnly = false }: 
   return (
     <div className="code-editor">
       <Editor
-        height="360px"
+        height="430px"
         language={language}
         theme="vs-dark"
         value={value}
@@ -57,7 +57,7 @@ function CodeEditor({ value, onChange, language = "python", readOnly = false }: 
 
           tabSize: 4,
 
-          wordWrap: "off",
+          wordWrap: "on",
           readOnly,
           domReadOnly: readOnly,
         }}

@@ -46,6 +46,7 @@ export interface WorkplaceProgress {
   ticketChatMessages?: Record<string, Array<{ role: "user" | "assistant"; content: string }>>;
   systemDesignDraft?: { nodes: Array<{ id: "client" | "api_gateway" | "payment_service" | "idempotency_store" | "payments_db" | "queue" | "worker" | "monitoring"; x: number; y: number }>; connections: string[] };
   systemDesignReview?: { success: boolean; message: string; passed: string[]; missing: string[] } | null;
+  seenTicketGuides?: string[];
   selectedFileName: string;
   paymentCode: string;
   checkOutput: string;
