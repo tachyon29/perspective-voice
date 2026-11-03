@@ -585,6 +585,16 @@ function SoftwareEngineeringWork() {
     }
   };
 
+  const appendTicketVoiceExchange = (transcript: string, reply: string) => {
+    const ticketId = activeTicketId;
+    const previous = ticketChatMessages[ticketId] ?? [];
+    saveActiveTicketChat(ticketId, [
+      ...previous,
+      { role: "user", content: transcript },
+      { role: "assistant", content: reply },
+    ]);
+  };
+
   const mergePullRequest = () => {
     setPullRequestStatus("merged");
     const mergedProgress = {
@@ -2101,6 +2111,23 @@ function SoftwareEngineeringWork() {
                 <ArrowUp size={16} />
               </button>
             </form>
+            <SarvamVoiceControl
+              mode="teammate"
+              history={activeTicketChatMessages}
+              context={{
+                ticketId: activeTicketId,
+                ticketTitle: activeTicketTitle,
+                ticketBrief: activeTicketBrief,
+                currentCode: activeTicketCode,
+                fileName: activeAdditionalTicket?.fileName ?? (activeTicketId === "ARCH-401" ? "payment-system.canvas" : selectedFile.name),
+                checkOutput: ticketOutputs[activeTicketId] ?? checkOutput,
+                acceptanceCriteria: activeAdditionalTicket?.acceptance.join("; ") ?? ticketGuides[activeTicketId].firstStep,
+              }}
+              persona="ORBIT"
+              role="Software Engineering Guide"
+              onExchange={appendTicketVoiceExchange}
+              label="Ask ORBIT by voice"
+            />
           </aside>
         )}
       </div>
