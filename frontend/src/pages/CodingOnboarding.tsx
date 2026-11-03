@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, type FormEvent } from "react";
 import { Check, ArrowLeft, ArrowUp, Orbit } from "lucide-react";
 import { Link } from "react-router-dom";
 import AccountStatus from "../components/AccountStatus";
+import ChatMessageText from "../components/ChatMessageText";
 import CodeEditor from "../components/CodeEditor";
 import SarvamVoiceControl from "../components/SarvamVoiceControl";
 import { backendFetch } from "../lib/api";
@@ -573,9 +574,9 @@ function CodingOnboarding() {
           <div className="tutor-message" aria-live="polite">
             <div className="orbit-field-note"><span>FIELD NOTE</span><p>“Every bug leaves a trail.”</p></div>
             {tutorMessages.map((message, index) => (
-              <p className={`tutor-chat-message ${message.role}`} key={`${index}-${message.role}`}>
-                {message.content}
-              </p>
+              <div className={`tutor-chat-message ${message.role}`} key={`${index}-${message.role}`}>
+                <ChatMessageText text={message.content} />
+              </div>
             ))}
             {isTutorReplying && <p className="tutor-chat-status">Thinking…</p>}
           </div>

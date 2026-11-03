@@ -1,9 +1,11 @@
 import { useEffect, useRef, useState, type CSSProperties, type FormEvent } from "react";
-import { ArrowUp, Orbit } from "lucide-react";
+import { ArrowLeft, ArrowUp, Orbit } from "lucide-react";
 import { Link } from "react-router-dom";
 import CodeEditor from "../components/CodeEditor";
+import ChatMessageText from "../components/ChatMessageText";
 import AccountStatus from "../components/AccountStatus";
 import SarvamVoiceControl from "../components/SarvamVoiceControl";
+import SystemDesignExercise, { type SystemDesignDraft, type SystemDesignReview } from "../components/SystemDesignExercise";
 import { requestAIReply, type AIChatMessage } from "../lib/aiChat";
 import { backendFetch } from "../lib/api";
 import {
@@ -23,10 +25,10 @@ import {
 
 type WorkspaceView = SavedWorkplaceView;
 type PullRequestStatus = "not-created" | "in-review" | "merged";
-type TicketId = "PAY-142" | "DATA-208" | "API-317" | "PLAT-214";
+type TicketId = "PAY-142" | "DATA-208" | "API-317" | "PLAT-214" | "ARCH-401";
 
 interface EngineeringTicket {
-  id: Exclude<TicketId, "PAY-142">;
+  id: Exclude<TicketId, "PAY-142" | "ARCH-401">;
   title: string;
   summary: string;
   context: string;
@@ -92,6 +94,43 @@ const engineeringTickets: EngineeringTicket[] = [
     ],
   },
 ];
+
+const ticketSequence: TicketId[] = ["PAY-142", "API-317", "PLAT-214", "DATA-208", "ARCH-401"];
+const ticketTitles: Record<TicketId, string> = {
+  "PAY-142": "Add payment idempotency",
+  "API-317": "Fix transaction pagination boundaries",
+  "PLAT-214": "Invalidate stale payment-method pricing",
+  "DATA-208": "Speed up payment history queries",
+  "ARCH-401": "Design a reliable payment flow",
+};
+const ticketCelebrations: Record<TicketId, { title: string; message: string }> = {
+  "PAY-142": { title: "Duplicate-charge bug squashed!", message: "You made payment retries safe. That’s the kind of small change that protects real customers." },
+  "API-317": { title: "No more missing transactions!", message: "You found the off-by-one and made every page return exactly what it should." },
+  "PLAT-214": { title: "Stale-price bug fixed!", message: "Checkout now sees fresh prices, while unrelated cache entries stay warm." },
+  "DATA-208": { title: "Query tuned. History loads faster.", message: "You corrected the filter and gave the database an index that fits the query." },
+  "ARCH-401": { title: "You designed the payment system!", message: "You connected reliability, persistence, and retry safety into one end-to-end flow." },
+};
+
+function ticketExpertContext(ticketId: TicketId) {
+  const contexts: Record<TicketId, string> = {
+    "PAY-142": "Rahul helped design the payment retry path and knows why the same request must never create a second charge.",
+    "API-317": "Rahul owns the transaction API and has debugged pagination issues in customer history endpoints.",
+    "PLAT-214": "Rahul built the payment-method pricing cache and knows which entries should be invalidated after updates.",
+    "DATA-208": "Rahul tuned the payment-history query and can explain how the composite index changes its lookup plan.",
+    "ARCH-401": "Rahul worked on the payment pipeline architecture and can help you reason about retries, storage, and async work.",
+  };
+  return contexts[ticketId];
+}
+
+function getInitialTicketId(saved: WorkplaceProgress | null): TicketId {
+  const savedCompleted = new Set(saved?.completedTickets ?? []);
+  if (saved?.checksPassed || saved?.pullRequestStatus === "merged") savedCompleted.add("PAY-142");
+  const currentIndex = ticketSequence.findIndex((ticketId) => !savedCompleted.has(ticketId));
+  const requested = saved?.activeTicketId as TicketId | undefined;
+  const allowedIndex = currentIndex === -1 ? ticketSequence.length - 1 : currentIndex;
+  if (requested && ticketSequence.includes(requested) && ticketSequence.indexOf(requested) <= allowedIndex) return requested;
+  return currentIndex === -1 ? "ARCH-401" : ticketSequence[currentIndex];
+}
 
 interface TeammateMessage {
   author: "You" | "Priya";
@@ -180,7 +219,10 @@ const defaultDirectMessages: SavedDirectMessages = {
   Priya: [{ author: "Priya", text: "Welcome to Payments Engineering! Glad you’re here. PAY-142 is your first ticket; message me if you want to talk through anything." }],
   Arjun: [{ author: "Arjun", text: "Welcome aboard. I’m Arjun, one of the senior engineers. I’m happy to help you find your way around the service." }],
   Maya: [{ author: "Maya", text: "Welcome to the team! I’m Maya, the engineering manager. Take your time with the first ticket and reach out if you need context." }],
+  Rahul: [{ author: "Rahul", text: "Hey, I’m Rahul. I’ve worked on NovaPay’s payment pipeline. Tell me which ticket you’re on and where you’re stuck—I can help with the code or talk it through by voice." }],
 };
+
+const rahulProfile = { initial: "R", name: "Rahul" as const, role: "Senior Backend Engineer", detail: "Knows the payment pipeline, data paths, and service reliability." };
 
 function getPriyaReply(
   question: string,
@@ -314,9 +356,7 @@ const ticketTriageOptions: Array<{
 function SoftwareEngineeringWork() {
   const { progress, updateProgress, saveProgress, saveProgressUpdate } = useProgress();
   const savedWorkplace = progress.workplace;
-  const [activeTicketId, setActiveTicketId] = useState<TicketId>(
-    (savedWorkplace?.activeTicketId as TicketId | undefined) ?? "PAY-142",
-  );
+  const [activeTicketId, setActiveTicketId] = useState<TicketId>(() => getInitialTicketId(savedWorkplace));
   const [ticketDrafts, setTicketDrafts] = useState<Record<string, string>>(
     savedWorkplace?.ticketDrafts ?? {},
   );
@@ -332,6 +372,14 @@ function SoftwareEngineeringWork() {
   const [ticketChatDraft, setTicketChatDraft] = useState("");
   const [ticketChatProvider, setTicketChatProvider] = useState<"gemini" | "sarvam">("gemini");
   const [isTicketChatReplying, setIsTicketChatReplying] = useState(false);
+  const [systemDesignDraft, setSystemDesignDraft] = useState<SystemDesignDraft>(
+    savedWorkplace?.systemDesignDraft ?? { nodes: [], connections: [] },
+  );
+  const [systemDesignReview, setSystemDesignReview] = useState<SystemDesignReview | null>(
+    savedWorkplace?.systemDesignReview ?? null,
+  );
+  const [isReviewingDesign, setIsReviewingDesign] = useState(false);
+  const [ticketCelebrationId, setTicketCelebrationId] = useState<TicketId | null>(null);
   const [ticketTriageChoice, setTicketTriageChoice] = useState<TicketTriageChoice | null>(
     savedWorkplace?.ticketTriageChoice ?? null,
   );
@@ -406,7 +454,7 @@ function SoftwareEngineeringWork() {
   const [reflectionSaveError, setReflectionSaveError] = useState("");
   const selectedTeammate = teamMembers.find(
     (member) => `dm-${member.name.toLowerCase()}` === view,
-  );
+  ) ?? (view === "dm-rahul" ? rahulProfile : undefined);
   const mayaVoiceHistory = directMessages.Maya ?? defaultDirectMessages.Maya;
   const selectedTriageOption = ticketTriageOptions.find(
     (option) => option.id === ticketTriageChoice,
@@ -415,10 +463,20 @@ function SoftwareEngineeringWork() {
   const activeTicketCode = activeTicketId === "PAY-142"
     ? paymentCode
     : ticketDrafts[activeTicketId] ?? activeAdditionalTicket?.starterCode ?? "";
-  const activeTicketTitle = activeAdditionalTicket?.title ?? "Add idempotency protection to payment creation";
-  const activeTicketBrief = activeAdditionalTicket?.context ?? "A retry with the same key should return the original payment; new or missing keys create a new payment.";
+  const activeTicketTitle = activeAdditionalTicket?.title ?? ticketTitles[activeTicketId];
+  const activeTicketBrief = activeAdditionalTicket?.context ?? ticketExpertContext(activeTicketId);
   const activeTicketChatMessages = ticketChatMessages[activeTicketId] ?? [];
   const ticketChatVisible = view === "ticket" || view === "repository";
+  const isTicketComplete = (ticketId: TicketId) => ticketId === "PAY-142"
+    ? checksPassed || pullRequestStatus === "merged"
+    : completedTickets.includes(ticketId);
+  const completedTicketCount = ticketSequence.filter(isTicketComplete).length;
+  const currentTicketIndex = ticketSequence.findIndex((ticketId) => !isTicketComplete(ticketId));
+  const isTicketUnlocked = (ticketId: TicketId) => {
+    const index = ticketSequence.indexOf(ticketId);
+    return isTicketComplete(ticketId) || index <= (currentTicketIndex === -1 ? ticketSequence.length - 1 : currentTicketIndex);
+  };
+  const nextTicketId = ticketSequence[ticketSequence.indexOf(activeTicketId) + 1] ?? null;
 
   const buildWorkplaceProgress = (
     overrides: Partial<WorkplaceProgress> = {},
@@ -429,6 +487,8 @@ function SoftwareEngineeringWork() {
     ticketOutputs,
     completedTickets,
     ticketChatMessages,
+    systemDesignDraft,
+    systemDesignReview,
     selectedFileName: selectedFile.name,
     paymentCode,
     checkOutput,
@@ -500,10 +560,10 @@ function SoftwareEngineeringWork() {
           ticketTitle: activeTicketTitle,
           ticketBrief: activeTicketBrief,
           currentCode: activeTicketCode,
-          fileName: activeAdditionalTicket?.fileName ?? selectedFile.name,
-          checkOutput: ticketOutputs[activeTicketId] ?? checkOutput,
+          fileName: activeAdditionalTicket?.fileName ?? (ticketId === "ARCH-401" ? "payment-system.canvas" : selectedFile.name),
+          checkOutput: ticketOutputs[ticketId] ?? checkOutput,
           checksPassed: String(completedTickets.includes(ticketId) || (ticketId === "PAY-142" && checksPassed)),
-          acceptanceCriteria: activeAdditionalTicket?.acceptance.join("; ") ?? "Same key returns the original payment; a new or missing key creates a payment.",
+          acceptanceCriteria: activeAdditionalTicket?.acceptance.join("; ") ?? (ticketId === "ARCH-401" ? "Place the core payment components and connect the customer request, idempotency check, and database write." : "Same key returns the original payment; a new or missing key creates a payment."),
         },
       });
       saveActiveTicketChat(ticketId, [...messagesAfterUser, { role: "assistant", content: reply }]);
@@ -540,6 +600,8 @@ function SoftwareEngineeringWork() {
     ticketOutputs,
     completedTickets,
     ticketChatMessages,
+    systemDesignDraft,
+    systemDesignReview,
     selectedFile.name,
     paymentCode,
     checkOutput,
@@ -584,8 +646,10 @@ function SoftwareEngineeringWork() {
   };
 
   const selectEngineeringTicket = (ticketId: TicketId) => {
+    if (!isTicketUnlocked(ticketId)) return;
     setActiveTicketId(ticketId);
     setView("ticket");
+    setTicketCelebrationId(null);
   };
 
   const updateActiveTicketCode = (value: string) => {
@@ -596,6 +660,7 @@ function SoftwareEngineeringWork() {
     setTicketDrafts((previous) => ({ ...previous, [activeTicketId]: value }));
     setTicketOutputs((previous) => ({ ...previous, [activeTicketId]: "" }));
     setCompletedTickets((previous) => previous.filter((ticketId) => ticketId !== activeTicketId));
+    setTicketCelebrationId(null);
     setCheckOutput("");
   };
 
@@ -811,6 +876,7 @@ function SoftwareEngineeringWork() {
     setGitCommand("");
     setCommitMessage("");
     setGitOutput("");
+    setTicketCelebrationId(null);
   };
 
   const runGitCommand = async (event: FormEvent<HTMLFormElement>) => {
@@ -851,6 +917,7 @@ function SoftwareEngineeringWork() {
   const runChecks = async () => {
     setIsChecking(true);
     const ticketId = activeTicketId;
+    const wasComplete = isTicketComplete(ticketId);
     if (ticketId === "PAY-142") {
       setCheckOutput("Running PAY-142 checks...");
       setChecksPassed(false);
@@ -869,10 +936,14 @@ function SoftwareEngineeringWork() {
       if (ticketId === "PAY-142") {
         setChecksPassed(result.success);
         setCheckOutput(output);
+        if (result.success && !wasComplete) setTicketCelebrationId(ticketId);
       } else {
         setTicketOutputs((previous) => ({ ...previous, [ticketId]: output }));
         if (result.success) {
           setCompletedTickets((previous) => previous.includes(ticketId) ? previous : [...previous, ticketId]);
+          if (!wasComplete) setTicketCelebrationId(ticketId);
+        } else {
+          setCompletedTickets((previous) => previous.filter((completedId) => completedId !== ticketId));
         }
       }
     } catch {
@@ -880,6 +951,38 @@ function SoftwareEngineeringWork() {
       else setTicketOutputs((previous) => ({ ...previous, [ticketId]: "Could not connect to the Perspective backend." }));
     } finally {
       setIsChecking(false);
+    }
+  };
+
+  const runDesignReview = async () => {
+    setIsReviewingDesign(true);
+    try {
+      const response = await backendFetch("/workplace/design-check", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          nodes: systemDesignDraft.nodes.map((node) => node.id),
+          connections: systemDesignDraft.connections,
+        }),
+      });
+      const result = await response.json() as SystemDesignReview;
+      if (!response.ok) throw new Error((result as unknown as { detail?: string }).detail ?? "The design review could not run.");
+      setSystemDesignReview(result);
+      if (result.success && !completedTickets.includes("ARCH-401")) {
+        setCompletedTickets((previous) => previous.includes("ARCH-401") ? previous : [...previous, "ARCH-401"]);
+        setTicketCelebrationId("ARCH-401");
+      } else if (!result.success) {
+        setCompletedTickets((previous) => previous.filter((ticketId) => ticketId !== "ARCH-401"));
+      }
+    } catch (error) {
+      setSystemDesignReview({
+        success: false,
+        message: error instanceof Error ? error.message : "The design service is temporarily unavailable. Try again.",
+        passed: [],
+        missing: [],
+      });
+    } finally {
+      setIsReviewingDesign(false);
     }
   };
 
@@ -1165,7 +1268,7 @@ function SoftwareEngineeringWork() {
               <section className="meeting-voice-help" aria-label="Ask the team by voice">
                 <div className="meeting-voice-history" aria-live="polite">
                   {mayaVoiceHistory.slice(-4).map((message, index) => (
-                    <p key={`${index}-${message.author}`}><strong>{message.author === "You" ? "You" : "Maya"}:</strong> {message.text}</p>
+                    <div className="meeting-transcript-message" key={`${index}-${message.author}`}><strong>{message.author === "You" ? "You" : "Maya"}:</strong><ChatMessageText text={message.text} /></div>
                   ))}
                 </div>
                 <SarvamVoiceControl
@@ -1270,6 +1373,13 @@ function SoftwareEngineeringWork() {
               </button>
             );
           })}
+          <button
+            className={`direct-message-nav${view === "dm-rahul" ? " active" : ""}`}
+            onClick={() => setView("dm-rahul")}
+          >
+            <span className="rail-icon teammate-rail-avatar">R</span>
+            Rahul · Ticket guide
+          </button>
           <div className="workplace-rail-spacer" />
           <div className="team-presence">
             <span className="presence-dot" />
@@ -1290,25 +1400,33 @@ function SoftwareEngineeringWork() {
           {view === "ticket" && (
             <section className="engineering-ticket-queue" aria-label="Team ticket queue">
               <div className="engineering-ticket-queue-heading">
-                <div><p className="eyebrow">TEAM BACKLOG</p><strong>Choose a ticket to explore</strong></div>
-                <span>{completedTickets.length + (pullRequestStatus === "merged" ? 1 : 0)} of 4 complete</span>
+                <div><p className="eyebrow">SOFTWARE ENGINEERING TRACK</p><strong>Five steps from first fix to system design</strong></div>
+                <span>{completedTicketCount} of {ticketSequence.length} complete</span>
               </div>
+              <div className="engineering-track-progress" aria-label={`${completedTicketCount} of 5 track milestones complete`}><span style={{ width: `${(completedTicketCount / ticketSequence.length) * 100}%` }} /></div>
               <div className="engineering-ticket-queue-list">
-                <button type="button" className={`engineering-ticket-queue-item${activeTicketId === "PAY-142" ? " active" : ""}`} onClick={() => selectEngineeringTicket("PAY-142")}>
-                  <span className="queue-ticket-id">PAY-142</span><strong>Add payment idempotency</strong><small>{pullRequestStatus === "merged" ? "Complete" : "Payments · Feature"}</small>
-                  <i className={pullRequestStatus === "merged" ? "done" : ""} aria-hidden="true" />
-                </button>
-                {engineeringTickets.map((ticket) => {
-                  const hasDraft = Boolean(ticketDrafts[ticket.id] && ticketDrafts[ticket.id] !== ticket.starterCode);
-                  const complete = completedTickets.includes(ticket.id);
+                {ticketSequence.map((ticketId, index) => {
+                  const complete = isTicketComplete(ticketId);
+                  const unlocked = isTicketUnlocked(ticketId);
+                  const ticket = engineeringTickets.find((candidate) => candidate.id === ticketId);
+                  const hasDraft = Boolean(ticket && ticketDrafts[ticket.id] && ticketDrafts[ticket.id] !== ticket.starterCode);
+                  const status = complete ? "Complete" : activeTicketId === ticketId ? "Current step" : unlocked ? "Up next" : "Locked · finish earlier steps";
                   return (
-                    <button type="button" key={ticket.id} className={`engineering-ticket-queue-item${activeTicketId === ticket.id ? " active" : ""}`} onClick={() => selectEngineeringTicket(ticket.id)}>
-                      <span className="queue-ticket-id">{ticket.id}</span><strong>{ticket.title}</strong><small>{complete ? "Complete" : hasDraft ? "In progress" : ticket.category}</small>
+                    <button type="button" key={ticketId} disabled={!unlocked} className={`engineering-ticket-queue-item${activeTicketId === ticketId ? " active" : ""}${complete ? " completed" : ""}${!unlocked ? " locked" : ""}`} onClick={() => selectEngineeringTicket(ticketId)}>
+                      <span className="queue-ticket-id">STEP {String(index + 1).padStart(2, "0")} · {ticketId}</span><strong>{ticketTitles[ticketId]}</strong><small>{hasDraft && !complete ? "In progress" : status}</small>
                       <i className={complete ? "done" : ""} aria-hidden="true" />
                     </button>
                   );
                 })}
               </div>
+            </section>
+          )}
+
+          {ticketCelebrationId === activeTicketId && (
+            <section className="ticket-celebration" role="status">
+              <span aria-hidden="true">✦</span>
+              <div><strong>{ticketCelebrations[activeTicketId].title}</strong><p>{ticketCelebrations[activeTicketId].message}</p></div>
+              {nextTicketId ? <button type="button" onClick={() => selectEngineeringTicket(nextTicketId)}>Next step · {nextTicketId} <span aria-hidden="true">→</span></button> : <button type="button" onClick={() => setTicketCelebrationId(null)}>Review your design</button>}
             </section>
           )}
 
@@ -1465,9 +1583,28 @@ function SoftwareEngineeringWork() {
                 <div className="ticket-workbench-heading"><div><p className="eyebrow">{activeAdditionalTicket.id} / {activeAdditionalTicket.fileName}</p><h3>Your workspace</h3></div><span>{activeAdditionalTicket.language.toUpperCase()}</span></div>
                 <p>{activeAdditionalTicket.instruction}</p>
                 <CodeEditor key={activeAdditionalTicket.id} language={activeAdditionalTicket.language} value={activeTicketCode} onChange={updateActiveTicketCode} />
-                <div className="workplace-check-actions"><button type="button" onClick={() => void runChecks()} disabled={isChecking}>{isChecking ? "Running checks…" : "Run checks"}</button><span>Runs against a small, isolated fixture. No external database required.</span></div>
+                <div className="workplace-check-actions"><button type="button" onClick={() => void runChecks()} disabled={isChecking}>{isChecking ? "Running checks…" : "Run checks"}</button><span>{activeAdditionalTicket.id === "DATA-208" ? "MySQL-compatible SQL, reviewed on an isolated SQLite fixture—not a live MySQL server." : "Runs against an isolated test fixture."}</span></div>
                 {ticketOutputs[activeAdditionalTicket.id] && <div className={`workplace-check-output${completedTickets.includes(activeAdditionalTicket.id) ? " passed" : ""}`}><div className="terminal-label">TEST OUTPUT</div><pre>{ticketOutputs[activeAdditionalTicket.id]}</pre></div>}
               </section>
+            </article>
+          ) : activeTicketId === "ARCH-401" ? (
+            <article className="work-ticket additional-work-ticket system-design-ticket">
+              <div className="ticket-heading-row"><div className="ticket-id">ARCH-401</div><span className={`ticket-status${completedTickets.includes("ARCH-401") ? " done" : ""}`}>{completedTickets.includes("ARCH-401") ? "COMPLETE" : "CAPSTONE"}</span></div>
+              <h2>Design a reliable payment flow</h2>
+              <p className="ticket-summary">Bring the track together: map a payment request, protect retries, store the result, and make follow-up work observable.</p>
+              <div className="ticket-meta"><div><span>TEAM</span><strong>Payments Engineering</strong></div><div><span>PRIORITY</span><strong>Capstone</strong></div><div><span>TYPE</span><strong>System design</strong></div></div>
+              <SystemDesignExercise
+                value={systemDesignDraft}
+                onChange={(next) => {
+                  setSystemDesignDraft(next);
+                  setSystemDesignReview(null);
+                  setCompletedTickets((previous) => previous.filter((ticketId) => ticketId !== "ARCH-401"));
+                  setTicketCelebrationId(null);
+                }}
+                review={systemDesignReview}
+                isReviewing={isReviewingDesign}
+                onReview={() => void runDesignReview()}
+              />
             </article>
           ) : null : view === "repository" ? (
             <section className="repository-view">
@@ -1812,7 +1949,7 @@ function SoftwareEngineeringWork() {
                         <strong>{message.author === "You" ? "You" : "Priya"}</strong>
                         {message.author === "Priya" && <span>Backend Engineer</span>}
                       </div>
-                      <p>{message.text}</p>
+                      <ChatMessageText text={message.text} />
                     </div>
                   </article>
                 ))}
@@ -1846,8 +1983,9 @@ function SoftwareEngineeringWork() {
                 <div>
                   <p className="eyebrow">DIRECT MESSAGE</p>
                   <h2>{selectedTeammate.name}</h2>
-                  <span>{selectedTeammate.role} · Payments Engineering</span>
+                  <span>{selectedTeammate.role} · Payments Engineering · {activeTicketId}</span>
                 </div>
+                <button className="ticket-expert-back" type="button" onClick={() => setView("ticket")}><ArrowLeft size={13} /> Back to ticket</button>
               </header>
               <div className="direct-message-history" aria-live="polite">
                 {(directMessages[selectedTeammate.name] ?? defaultDirectMessages[selectedTeammate.name]).map((message, index) => (
@@ -1863,7 +2001,7 @@ function SoftwareEngineeringWork() {
                         <strong>{message.author === "You" ? "You" : selectedTeammate.name}</strong>
                         {message.author !== "You" && <span>{selectedTeammate.role}</span>}
                       </div>
-                      <p>{message.text}</p>
+                      <ChatMessageText text={message.text} />
                     </div>
                   </article>
                 ))}
@@ -1895,6 +2033,14 @@ function SoftwareEngineeringWork() {
           ) : null}
         </section>
         {ticketChatVisible && (
+          <aside className="workplace-ticket-expert" aria-label="Teammate with context on this ticket">
+            <p className="eyebrow">A TEAMMATE KNOWS THIS SYSTEM</p>
+            <div className="ticket-expert-person"><span>R</span><div><strong>Rahul</strong><small>Senior Backend Engineer</small></div></div>
+            <p>{ticketExpertContext(activeTicketId)}</p>
+            <button type="button" onClick={() => setView("dm-rahul")}>Chat or speak with Rahul <span aria-hidden="true">→</span></button>
+          </aside>
+        )}
+        {ticketChatVisible && (
           <aside className="workplace-orbit-panel" aria-label={`ORBIT help for ${activeTicketId}`}>
             <header className="workplace-orbit-header">
               <span className="workplace-orbit-mark"><Orbit size={17} strokeWidth={1.8} aria-hidden="true" /></span>
@@ -1912,7 +2058,7 @@ function SoftwareEngineeringWork() {
                 <p className="tutor-chat-message assistant">I’m here to help with {activeTicketId}. Tell me what you’ve tried or where you’re stuck, and we’ll work through it together.</p>
               )}
               {activeTicketChatMessages.map((message, index) => (
-                <p className={`tutor-chat-message ${message.role}`} key={`${activeTicketId}-${index}-${message.role}`}>{message.content}</p>
+                <div className={`tutor-chat-message ${message.role}`} key={`${activeTicketId}-${index}-${message.role}`}><ChatMessageText text={message.content} /></div>
               ))}
               {isTicketChatReplying && <p className="tutor-chat-status">ORBIT is thinking…</p>}
             </div>

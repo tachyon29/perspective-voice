@@ -45,6 +45,11 @@ class WorkplaceCodeRequest(BaseModel):
     ticket_id: str = "PAY-142"
 
 
+class WorkplaceDesignRequest(BaseModel):
+    nodes: list[str] = Field(default_factory=list)
+    connections: list[str] = Field(default_factory=list)
+
+
 class WorkplaceGitRequest(BaseModel):
     command: str
     step: int
@@ -400,7 +405,7 @@ async def sarvam_voice_message(
     tts_languages = {"hi-IN", "en-IN", "bn-IN", "ta-IN", "te-IN", "kn-IN", "ml-IN", "mr-IN", "gu-IN", "pa-IN", "od-IN"}
     spoken_language = detected_language if detected_language in tts_languages else "hi-IN"
     reply = sarvam_contextual_reply(client, mode, transcript, parsed_history, parsed_context, persona, role, spoken_language)
-    speaker = "aditya" if persona.lower() in {"arjun", "dev", "dev morgan"} else "priya"
+    speaker = "aditya" if persona.lower() in {"arjun", "rahul", "dev", "dev morgan"} else "priya"
     try:
         speech = client.text_to_speech.convert(text=reply, language_code=spoken_language, speaker=speaker, model="bulbul:v3")
         audio_base64 = speech.audios[0]
@@ -420,6 +425,7 @@ TEAMMATE_ROLES = {
     "Priya": "Backend Engineer",
     "Arjun": "Senior Engineer",
     "Maya": "Engineering Manager",
+    "Rahul": "Senior Backend Engineer",
 }
 
 
@@ -714,8 +720,9 @@ def check_payment_history_query(code: str) -> dict:
             hints.append("Add and use idx_payments_status_created on (status, created_at) to avoid scanning the full table.")
         if rows != expected:
             hints.append("Use status='succeeded', include only created_at >= '2026-10-01', group by customer_id, and sort totals descending.")
+        row_summary = "\n".join(" | ".join(str(value) for value in row) for row in rows) or "The query returned no rows."
         return {
-            "stdout": "\n".join(f"{row[0]} | {row[1]} cents" for row in rows) or "The query returned no rows.",
+            "stdout": row_summary,
             "stderr": "\n".join(hints) or "The query did not match the expected result.",
             "exit_code": 1,
             "success": False,
@@ -724,6 +731,34 @@ def check_payment_history_query(code: str) -> dict:
         return {"stdout": "", "stderr": f"SQL error: {error}", "exit_code": 1, "success": False}
     finally:
         connection.close()
+
+
+def review_payment_architecture(nodes: list[str], connections: list[str]) -> dict:
+    placed = set(nodes)
+    edges = set(connections)
+    required_nodes = {
+        "client": "Customer app",
+        "api_gateway": "API Gateway",
+        "payment_service": "Payment service",
+        "idempotency_store": "Idempotency store",
+        "payments_db": "Payments database",
+    }
+    required_edges = {
+        "client>api_gateway": "Customer app routes requests through the API Gateway",
+        "api_gateway>payment_service": "API Gateway routes the request to the Payment service",
+        "payment_service>idempotency_store": "Payment service checks the idempotency store before creating a charge",
+        "payment_service>payments_db": "Payment service persists the payment record",
+    }
+    passed = [f"Placed {name}" for node_id, name in required_nodes.items() if node_id in placed]
+    passed.extend(description for edge, description in required_edges.items() if edge in edges)
+    missing = [f"Add {name}" for node_id, name in required_nodes.items() if node_id not in placed]
+    missing.extend(description for edge, description in required_edges.items() if edge not in edges)
+    return {
+        "success": not missing,
+        "message": "The core payment path has a clear request flow and protects retries before writing payment records." if not missing else "Complete the core request path and show where retries are checked and payment records are stored.",
+        "passed": passed,
+        "missing": missing,
+    }
 
 
 WORKPLACE_GIT_COMMANDS = [
@@ -845,6 +880,16 @@ def check_workplace_code(request: WorkplaceCodeRequest, _user: SupabaseUser = De
         "exit_code": result.exit_code,
         "success": result.exit_code == 0 and success_marker in result.stdout,
     }
+
+
+@app.post("/workplace/design-check")
+def check_workplace_design(request: WorkplaceDesignRequest, _user: SupabaseUser = Depends(get_current_user)):
+    allowed_nodes = {"client", "api_gateway", "payment_service", "idempotency_store", "payments_db", "queue", "worker", "monitoring"}
+    if len(request.nodes) > len(allowed_nodes) or len(request.connections) > 24:
+        raise HTTPException(status_code=422, detail="The architecture diagram is too large to review.")
+    if any(node not in allowed_nodes for node in request.nodes):
+        raise HTTPException(status_code=422, detail="The diagram contains an unknown component.")
+    return review_payment_architecture(request.nodes, request.connections)
 
 
 @app.post("/workplace/git")

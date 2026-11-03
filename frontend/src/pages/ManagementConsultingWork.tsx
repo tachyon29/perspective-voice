@@ -15,6 +15,7 @@ import {
 import { Link } from "react-router-dom";
 import AccountStatus from "../components/AccountStatus";
 import SarvamVoiceControl from "../components/SarvamVoiceControl";
+import ChatMessageText from "../components/ChatMessageText";
 import { requestSarvamChat } from "../lib/aiChat";
 import {
   useProgress,
@@ -544,7 +545,7 @@ function ManagementConsultingWork() {
           {view === "team-chat" && (
             <div className="consulting-content consulting-chat-view">
               <div className="consulting-chat-header"><span className="consulting-chat-hash">#</span><div><h2>freshmarket-case</h2><p>Case team discussion · Sarvam teammates aware of this case</p></div><span className="consulting-live-label">3 MEMBERS</span></div>
-              <div className="consulting-chat-messages" aria-live="polite">{caseProgress.chatMessages.map((message, index) => <div className={`consulting-chat-message${message.author === "You" ? " you" : ""}`} key={`${message.author}-${index}`}><span className={`consulting-avatar ${message.author === "You" ? "you" : message.author.toLowerCase()}`}>{message.author === "You" ? "Y" : message.author[0]}</span><div><strong>{message.author === "You" ? "You" : message.author === "Maya" ? "Maya Chen" : message.author === "Leena" ? "Leena Shah" : "Dev Morgan"}</strong><p>{message.text}</p></div></div>)}{isCaseTeamReplying && <p className="ai-reply-status">Maya is replying…</p>}</div>
+              <div className="consulting-chat-messages" aria-live="polite">{caseProgress.chatMessages.map((message, index) => <div className={`consulting-chat-message${message.author === "You" ? " you" : ""}`} key={`${message.author}-${index}`}><span className={`consulting-avatar ${message.author === "You" ? "you" : message.author.toLowerCase()}`}>{message.author === "You" ? "Y" : message.author[0]}</span><div><strong>{message.author === "You" ? "You" : message.author === "Maya" ? "Maya Chen" : message.author === "Leena" ? "Leena Shah" : "Dev Morgan"}</strong><ChatMessageText text={message.text} /></div></div>)}{isCaseTeamReplying && <p className="ai-reply-status">Maya is replying…</p>}</div>
               <form className="consulting-chat-compose" onSubmit={askTeam}><input value={chatDraft} onChange={(event) => setChatDraft(event.target.value)} placeholder="Ask about the case, numbers, or recommendation…" aria-label="Message your case team" /><button type="submit" disabled={!chatDraft.trim() || isCaseTeamReplying} aria-label="Send message"><Send size={15} /></button></form>
               <SarvamVoiceControl mode="consulting" history={caseProgress.chatMessages.map((message) => ({ role: message.author === "You" ? "user" : "assistant", content: message.text }))} context={caseChatContext} persona="Maya" role="Engagement Manager" onExchange={appendVoiceCaseExchange} label="Ask the case team by voice" />
             </div>

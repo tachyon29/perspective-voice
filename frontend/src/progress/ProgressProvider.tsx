@@ -17,9 +17,9 @@ import { useAuth } from "../auth/AuthProvider";
 import { supabase } from "../lib/supabase";
 
 export type JourneyStage = "career" | "onboarding" | "workplace";
-export type SavedWorkplaceView = "ticket" | "repository" | "slack" | "dm-priya" | "dm-arjun" | "dm-maya";
+export type SavedWorkplaceView = "ticket" | "repository" | "slack" | "dm-priya" | "dm-arjun" | "dm-maya" | "dm-rahul";
 export type SavedPullRequestStatus = "not-created" | "in-review" | "merged";
-export type TeamMemberName = "Priya" | "Arjun" | "Maya";
+export type TeamMemberName = "Priya" | "Arjun" | "Maya" | "Rahul";
 export type TicketTriageChoice = "route" | "service" | "tests";
 
 export interface OnboardingProgress {
@@ -44,6 +44,8 @@ export interface WorkplaceProgress {
   ticketOutputs?: Record<string, string>;
   completedTickets?: string[];
   ticketChatMessages?: Record<string, Array<{ role: "user" | "assistant"; content: string }>>;
+  systemDesignDraft?: { nodes: Array<{ id: "client" | "api_gateway" | "payment_service" | "idempotency_store" | "payments_db" | "queue" | "worker" | "monitoring"; x: number; y: number }>; connections: string[] };
+  systemDesignReview?: { success: boolean; message: string; passed: string[]; missing: string[] } | null;
   selectedFileName: string;
   paymentCode: string;
   checkOutput: string;
